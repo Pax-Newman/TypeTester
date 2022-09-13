@@ -46,7 +46,12 @@ func (m model) helpView() string {
 
 // first method to run when model is created
 func (m model) Init() tea.Cmd {
-	return m.stopwatch.Init()
+	// init bubble models
+	batch := tea.Batch(
+		m.stopwatch.Init(),
+		textinput.Blink,
+	)
+	return batch
 }
 
 // update model's state
@@ -72,9 +77,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	}
-	var cmd tea.Cmd
-	m.stopwatch, cmd = m.stopwatch.Update(msg)
-	return m, cmd
+
+	// update bubbles
+	var stopwatchcmd tea.Cmd
+	m.stopwatch, stopwatchcmd = m.stopwatch.Update(msg)
+	var textinputcmd tea.Cmd
+	m.textinput, textinputcmd = m.textinput.Update(msg)
+
+	batch := tea.Batch(
+		stopwatchcmd,
+		textinputcmd,
+	)
+	return m, batch
 }
 
 func (m model) View() string {
@@ -86,7 +100,8 @@ func (m model) View() string {
 		// render reference sentence
 		s += "\n" + m.ReferenceSentence + "\n"
 
-		m.textinput.View()
+		// render text box
+		s += m.textinput.View()
 
 		// render help
 		s += m.helpView()
@@ -96,15 +111,19 @@ func (m model) View() string {
 
 // run program
 func main() {
-	// init and define textinput
+	// create and define textinput
 	ti := textinput.New()
+	ti.Placeholder = "Pikachu"
+	ti.Focus()
+	// ti.CharLimit = 156
+	// ti.Width = 20
 
 	m := model{
-		// init stopwatch
+		// create stopwatch
 		stopwatch: stopwatch.NewWithInterval(time.Millisecond),
 		// set textinput field
 		textinput: ti,
-		// init and define keymap
+		// create and define keymap
 		keymap: keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
