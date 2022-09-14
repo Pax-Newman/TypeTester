@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/stopwatch"
@@ -22,9 +24,9 @@ type model struct {
 
 	quitting bool
 	// target sentence for player to type
-	ReferenceSentence string
-	// letters player has typed
-	Typed string
+	referenceSentence string
+	// tracks which letters were correctly typed
+	hits []bool
 }
 
 type keymap struct {
@@ -33,6 +35,14 @@ type keymap struct {
 	reset key.Binding
 	quit  key.Binding
 }
+
+var hitStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#0BF48B"))
+
+var missStyle = lipgloss.NewStyle().
+	Background(lipgloss.Color("#F12746"))
+
+var blankStyle = lipgloss.NewStyle()
 
 // render help page
 func (m model) helpView() string {
@@ -76,6 +86,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.stopwatch.Toggle()
 		}
 
+		switch msg.Type {
+		case tea.KeyRunes, tea.KeySpace:
+
+			typed := m.textinput.Value()
+			if len(typed) > len(m.hits) &&
+				msg.Runes[0] == rune(m.referenceSentence[len(typed)]) {
+
+				m.hits = append(m.hits, true)
+			} else {
+				m.hits = append(m.hits, false)
+			}
+		case tea.KeyBackspace:
+			if len(m.hits) > 0 {
+				m.hits = m.hits[0 : len(m.hits)-1]
+			}
+		}
+		// TODO update reference sentence style based on key input
+		// i.e. one color for a correct input, another for an incorrect input
 	}
 
 	// update bubbles
@@ -98,7 +126,22 @@ func (m model) View() string {
 		s = "Elapsed: " + s
 
 		// render reference sentence
-		s += "\n" + m.ReferenceSentence + "\n"
+		hits := []int{}
+		misses := []int{}
+
+		for idx, val := range m.hits {
+			if val {
+				hits = append(hits, idx)
+			} else {
+				misses = append(misses, idx)
+			}
+		}
+
+		refStr := lipgloss.StyleRunes(m.referenceSentence, hits, hitStyle, blankStyle)
+		refStr = lipgloss.StyleRunes(refStr, misses, missStyle, blankStyle)
+
+		// render reference sentence
+		s += "\n" + refStr + "\n"
 
 		// render text box
 		s += m.textinput.View()
@@ -145,7 +188,8 @@ func main() {
 		// init help
 		help: help.NewModel(),
 		// TODO replace with function to generate random sentence
-		ReferenceSentence: "jupiter coffee tiddleywinks clock funky helpless",
+		referenceSentence: "jupiter coffee tiddleywinks clock funky helpless",
+		hits:              []bool{},
 	}
 
 	m.keymap.start.SetEnabled(false)
