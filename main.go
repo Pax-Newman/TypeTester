@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,6 +30,7 @@ type model struct {
 	referenceSentence string
 	quitting          bool
 	finished          bool
+	wordbank          []string
 
 	// helpers
 	logger log.Logger
@@ -42,7 +45,7 @@ type keymap struct {
 }
 
 // Messages
-type stringMsg struct{ newString string }
+type logMsg struct{ value string }
 type startMsg struct{}
 type finishedMsg struct{}
 
@@ -53,6 +56,12 @@ func finishGame() tea.Msg {
 
 func startGame() tea.Msg {
 	return startMsg{}
+}
+
+func logCmd(s string) tea.Cmd {
+	return func() tea.Msg {
+		return logMsg{s}
+	}
 }
 
 // Styles
@@ -66,6 +75,20 @@ var missStyle = lipgloss.NewStyle().
 var unwrittenStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#828282")).
 	ColorWhitespace(false)
+
+// Helper Functions
+
+// Creates a random sentence from a provided list of words
+func createNewSentence(length int, words []string) string {
+	s := []string{}
+	for i := 0; i < length; i++ {
+		word := words[rand.Intn(len(words))]
+		s = append(s, word)
+	}
+	return strings.Join(s, " ")
+}
+
+// Methods
 
 // render help page
 func (m model) helpView() string {
@@ -91,6 +114,10 @@ func (m model) Init() tea.Cmd {
 // update model's state
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	// log incoming message
+	case logMsg:
+		m.logger.Println("From message" + msg.value)
+		return m, nil
 	// if the message is a keystroke
 	case tea.KeyMsg:
 		switch {
@@ -118,7 +145,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Continue playing with a new game
 	case startMsg:
 		m.textinput.Reset()
-		// TODO set new ref sentence
+		m.referenceSentence = createNewSentence(10, m.wordbank)
 		m.textinput.CharLimit = len(m.referenceSentence)
 		m.finished = false
 		cmd := tea.Batch(
@@ -176,8 +203,9 @@ func (m model) View() string {
 				styled += missStyle.Render(string(r))
 			}
 		}
-
 		s += styled
+
+		// render remainer of sentence
 		s += unwrittenStyle.Render(m.referenceSentence[len(typed):])
 
 		// render help
@@ -224,9 +252,9 @@ func main() {
 		},
 		// init help
 		help: help.NewModel(),
-		// TODO replace with function to generate random sentence
-		referenceSentence: "jupiter coffee",
-		logger:            *errLogger,
+		// TODO fetch wordbank from file
+		wordbank: []string{"jupiter", "coffee", "read", "book", "river", "create", "diaspora", "easy", "rumble", "tiddleywink", "funky"},
+		logger:   *errLogger,
 	}
 
 	m.keymap.start.SetEnabled(false)
