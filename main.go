@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Model
 type model struct {
 	// bubble models
 	stopwatch stopwatch.Model
@@ -23,12 +25,12 @@ type model struct {
 	help      help.Model
 
 	quitting bool
+	logger   log.Logger
 	// target sentence for player to type
 	referenceSentence string
-	// tracks which letters were correctly typed
-	hits []bool
 }
 
+// Key bindings
 type keymap struct {
 	start key.Binding
 	stop  key.Binding
@@ -36,13 +38,13 @@ type keymap struct {
 	quit  key.Binding
 }
 
+// Styles
 var hitStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#0BF48B"))
 
 var missStyle = lipgloss.NewStyle().
-	Background(lipgloss.Color("#F12746"))
-
-var blankStyle = lipgloss.NewStyle()
+	Background(lipgloss.Color("#F12746")).
+	ColorWhitespace(false)
 
 // render help page
 func (m model) helpView() string {
@@ -85,23 +87,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keymap.start.SetEnabled(m.stopwatch.Running())
 			return m, m.stopwatch.Toggle()
 		}
-
-		switch msg.Type {
-		case tea.KeyRunes, tea.KeySpace:
-
-			typed := m.textinput.Value()
-			if len(typed) > len(m.hits) &&
-				msg.Runes[0] == rune(m.referenceSentence[len(typed)]) {
-
-				m.hits = append(m.hits, true)
-			} else {
-				m.hits = append(m.hits, false)
-			}
-		case tea.KeyBackspace:
-			if len(m.hits) > 0 {
-				m.hits = m.hits[0 : len(m.hits)-1]
-			}
-		}
 		// TODO update reference sentence style based on key input
 		// i.e. one color for a correct input, another for an incorrect input
 	}
@@ -126,25 +111,22 @@ func (m model) View() string {
 		s = "Elapsed: " + s
 
 		// render reference sentence
-		hits := []int{}
-		misses := []int{}
+		s += "\n" + m.referenceSentence + "\n"
 
-		for idx, val := range m.hits {
-			if val {
-				hits = append(hits, idx)
+		// render typed sentence
+		typed := []rune(m.textinput.Value())
+		ref := []rune(m.referenceSentence)
+		var styled string
+
+		for idx, r := range typed {
+			if r == ref[idx] {
+				styled += hitStyle.Render(string(r))
 			} else {
-				misses = append(misses, idx)
+				styled += missStyle.Render(string(r))
 			}
 		}
 
-		refStr := lipgloss.StyleRunes(m.referenceSentence, hits, hitStyle, blankStyle)
-		refStr = lipgloss.StyleRunes(refStr, misses, missStyle, blankStyle)
-
-		// render reference sentence
-		s += "\n" + refStr + "\n"
-
-		// render text box
-		s += m.textinput.View()
+		s += styled
 
 		// render help
 		s += m.helpView()
@@ -160,6 +142,9 @@ func main() {
 	ti.Focus()
 	// ti.CharLimit = 156
 	// ti.Width = 20
+
+	f, _ := os.OpenFile("TypeTester.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	errLogger := log.New(f, "", log.Lshortfile)
 
 	m := model{
 		// create stopwatch
@@ -189,7 +174,7 @@ func main() {
 		help: help.NewModel(),
 		// TODO replace with function to generate random sentence
 		referenceSentence: "jupiter coffee tiddleywinks clock funky helpless",
-		hits:              []bool{},
+		logger:            *errLogger,
 	}
 
 	m.keymap.start.SetEnabled(false)
