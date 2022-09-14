@@ -113,10 +113,12 @@ func (m model) Init() tea.Cmd {
 
 // update model's state
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	// log incoming message
 	case logMsg:
-		m.logger.Println("From message" + msg.value)
+		m.logger.Println("From message " + msg.value)
 		return m, nil
 	// if the message is a keystroke
 	case tea.KeyMsg:
@@ -136,6 +138,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keymap.stop.SetEnabled(!m.stopwatch.Running())
 			m.keymap.start.SetEnabled(m.stopwatch.Running())
 			return m, m.stopwatch.Toggle()
+
+		default:
+			// check completion status
+			if val := m.textinput.Value() + msg.String(); len(val) > 0 && val == m.referenceSentence {
+				cmd = finishGame
+			}
 		}
 	// Stop the game when it's finished
 	case finishedMsg:
@@ -151,6 +159,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := tea.Batch(
 			m.stopwatch.Reset(),
 			m.stopwatch.Start(),
+			logCmd(fmt.Sprint(m.stopwatch.Interval)),
 		)
 		return m, cmd
 	}
@@ -161,13 +170,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var textinputcmd tea.Cmd
 	m.textinput, textinputcmd = m.textinput.Update(msg)
 
-	// check completion status
-	var cmd tea.Cmd
-	if m.textinput.Value() == m.referenceSentence {
-		cmd = finishGame
-	}
-
-	batch := tea.Sequentially(
+	batch := tea.Batch(
 		stopwatchcmd,
 		textinputcmd,
 		cmd,
@@ -254,6 +257,7 @@ func main() {
 		help: help.NewModel(),
 		// TODO fetch wordbank from file
 		wordbank: []string{"jupiter", "coffee", "read", "book", "river", "create", "diaspora", "easy", "rumble", "tiddleywink", "funky"},
+		finished: false,
 		logger:   *errLogger,
 	}
 
