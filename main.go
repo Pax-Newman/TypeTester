@@ -24,10 +24,13 @@ type model struct {
 	keymap    keymap
 	help      help.Model
 
-	quitting bool
-	logger   log.Logger
-	// target sentence for player to type
+	// state fields
 	referenceSentence string
+	quitting          bool
+	finished          bool
+
+	// helpers
+	logger log.Logger
 }
 
 // Key bindings
@@ -38,12 +41,30 @@ type keymap struct {
 	quit  key.Binding
 }
 
+// Messages
+type stringMsg struct{ newString string }
+type startMsg struct{}
+type finishedMsg struct{}
+
+// Commands
+func finishGame() tea.Msg {
+	return finishedMsg{}
+}
+
+func startGame() tea.Msg {
+	return startMsg{}
+}
+
 // Styles
 var hitStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#0BF48B"))
 
 var missStyle = lipgloss.NewStyle().
 	Background(lipgloss.Color("#F12746")).
+	ColorWhitespace(false)
+
+var unwrittenStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#828282")).
 	ColorWhitespace(false)
 
 // render help page
@@ -62,6 +83,7 @@ func (m model) Init() tea.Cmd {
 	batch := tea.Batch(
 		m.stopwatch.Init(),
 		textinput.Blink,
+		startGame,
 	)
 	return batch
 }
@@ -79,16 +101,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// reset the timer
 		case key.Matches(msg, m.keymap.reset):
-			return m, m.stopwatch.Reset()
+			return m, startGame
 
 		// toggle timer status
+		// TODO change this to pause the game
 		case key.Matches(msg, m.keymap.start, m.keymap.stop):
 			m.keymap.stop.SetEnabled(!m.stopwatch.Running())
 			m.keymap.start.SetEnabled(m.stopwatch.Running())
 			return m, m.stopwatch.Toggle()
 		}
-		// TODO update reference sentence style based on key input
-		// i.e. one color for a correct input, another for an incorrect input
+	// Stop the game when it's finished
+	case finishedMsg:
+		m.textinput.Reset()
+		m.finished = true
+		return m, m.stopwatch.Stop()
+	// Continue playing with a new game
+	case startMsg:
+		m.textinput.Reset()
+		// TODO set new ref sentence
+		m.textinput.CharLimit = len(m.referenceSentence)
+		m.finished = false
+		cmd := tea.Batch(
+			m.stopwatch.Reset(),
+			m.stopwatch.Start(),
+		)
+		return m, cmd
 	}
 
 	// update bubbles
@@ -97,14 +134,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var textinputcmd tea.Cmd
 	m.textinput, textinputcmd = m.textinput.Update(msg)
 
-	batch := tea.Batch(
+	// check completion status
+	var cmd tea.Cmd
+	if m.textinput.Value() == m.referenceSentence {
+		cmd = finishGame
+	}
+
+	batch := tea.Sequentially(
 		stopwatchcmd,
 		textinputcmd,
+		cmd,
 	)
 	return m, batch
 }
 
 func (m model) View() string {
+	if m.finished {
+		s := "Good job! Your final time was: " + m.stopwatch.View()
+
+		s += "\n\nPress Enter to restart"
+		return s
+	}
+
 	s := m.stopwatch.View() + "\n"
 	if !m.quitting {
 		// render timer
@@ -127,6 +178,7 @@ func (m model) View() string {
 		}
 
 		s += styled
+		s += unwrittenStyle.Render(m.referenceSentence[len(typed):])
 
 		// render help
 		s += m.helpView()
@@ -138,7 +190,7 @@ func (m model) View() string {
 func main() {
 	// create and define textinput
 	ti := textinput.New()
-	ti.Placeholder = "Pikachu"
+	ti.Placeholder = "Start Typing!"
 	ti.Focus()
 	// ti.CharLimit = 156
 	// ti.Width = 20
@@ -162,8 +214,8 @@ func main() {
 				key.WithHelp("ctrl+s", "stop"),
 			),
 			reset: key.NewBinding(
-				key.WithKeys("ctrl+r"),
-				key.WithHelp("ctrl+r", "reset"),
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "reset"),
 			),
 			quit: key.NewBinding(
 				key.WithKeys("ctrl+c"),
@@ -173,7 +225,7 @@ func main() {
 		// init help
 		help: help.NewModel(),
 		// TODO replace with function to generate random sentence
-		referenceSentence: "jupiter coffee tiddleywinks clock funky helpless",
+		referenceSentence: "jupiter coffee",
 		logger:            *errLogger,
 	}
 
