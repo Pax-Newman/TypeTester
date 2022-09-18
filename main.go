@@ -158,7 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finished = false
 		cmd := tea.Batch(
 			m.stopwatch.Reset(),
-			m.stopwatch.Start(),
+			// m.stopwatch.Start(),
 			logCmd(fmt.Sprint(m.stopwatch.Interval)),
 		)
 		return m, cmd
@@ -223,8 +223,6 @@ func main() {
 	ti := textinput.New()
 	ti.Placeholder = "Start Typing!"
 	ti.Focus()
-	// ti.CharLimit = 156
-	// ti.Width = 20
 
 	f, _ := os.OpenFile("TypeTester.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	errLogger := log.New(f, "", log.Lshortfile)
