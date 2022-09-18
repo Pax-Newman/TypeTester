@@ -47,11 +47,11 @@ type keymap struct {
 // Messages
 type logMsg struct{ value string }
 type startMsg struct{}
-type finishedMsg struct{}
+type stopMsg struct{}
 
 // Commands
-func finishGame() tea.Msg {
-	return finishedMsg{}
+func stopGame() tea.Msg {
+	return stopMsg{}
 }
 
 func startGame() tea.Msg {
@@ -142,13 +142,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			// check completion status
 			if val := m.textinput.Value() + msg.String(); len(val) > 0 && val == m.referenceSentence {
-				cmd = finishGame
+				m.textinput.Reset()
+				m.finished = true
+				return m, stopGame
 			}
 		}
 	// Stop the game when it's finished
-	case finishedMsg:
-		m.textinput.Reset()
-		m.finished = true
+	case stopMsg:
 		return m, m.stopwatch.Stop()
 	// Continue playing with a new game
 	case startMsg:
