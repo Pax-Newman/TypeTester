@@ -9,19 +9,19 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/pax-newman/teatime"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Model
-type model struct {
+type Model struct {
 	// bubble models
-	stopwatch stopwatch.Model
+	stopwatch teatime.Model
 	textinput textinput.Model
 	keymap    keymap
 	help      help.Model
@@ -45,7 +45,7 @@ type keymap struct {
 }
 
 // Messages
-type logMsg struct{ value string }
+type logMsg string
 type startMsg struct{}
 type stopMsg struct{}
 
@@ -60,7 +60,7 @@ func startGame() tea.Msg {
 
 func logCmd(s string) tea.Cmd {
 	return func() tea.Msg {
-		return logMsg{s}
+		return logMsg(s)
 	}
 }
 
@@ -91,7 +91,7 @@ func createNewSentence(length int, words []string) string {
 // Methods
 
 // render help page
-func (m model) helpView() string {
+func (m Model) helpView() string {
 	return "\n" + m.help.ShortHelpView([]key.Binding{
 		m.keymap.start,
 		m.keymap.stop,
@@ -101,7 +101,7 @@ func (m model) helpView() string {
 }
 
 // first method to run when model is created
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	// init bubble models
 	batch := tea.Batch(
 		m.stopwatch.Init(),
@@ -112,13 +112,13 @@ func (m model) Init() tea.Cmd {
 }
 
 // update model's state
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	// log incoming message
 	case logMsg:
-		m.logger.Println("From message " + msg.value)
+		m.logger.Println("From message " + msg)
 		return m, nil
 	// if the message is a keystroke
 	case tea.KeyMsg:
@@ -158,8 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finished = false
 		cmd := tea.Batch(
 			m.stopwatch.Reset(),
-			// m.stopwatch.Start(),
-			logCmd(fmt.Sprint(m.stopwatch.Interval)),
+			// logCmd(fmt.Sprint(m.stopwatch.Interval)),
 		)
 		return m, cmd
 	}
@@ -178,7 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, batch
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	if m.finished {
 		s := "Good job! Your final time was: " + m.stopwatch.View()
 
@@ -227,9 +226,9 @@ func main() {
 	f, _ := os.OpenFile("TypeTester.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	errLogger := log.New(f, "", log.Lshortfile)
 
-	m := model{
+	m := Model{
 		// create stopwatch
-		stopwatch: stopwatch.NewWithInterval(time.Millisecond),
+		stopwatch: teatime.NewWithInterval(time.Millisecond),
 		// set textinput field
 		textinput: ti,
 		// create and define keymap
