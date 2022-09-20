@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/pax-newman/teatime"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -120,18 +119,6 @@ func setSeed() tea.Msg {
 	}
 	return seedMsg(int64(binary.LittleEndian.Uint64(seedbytes[:])))
 }
-
-// Styles
-var hitStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#0BF48B"))
-
-var missStyle = lipgloss.NewStyle().
-	Background(lipgloss.Color("#F12746")).
-	ColorWhitespace(true)
-
-var unwrittenStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#828282")).
-	ColorWhitespace(false)
 
 // Helper Functions
 
