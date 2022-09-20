@@ -22,7 +22,7 @@ var unwrittenStyle = lipgloss.NewStyle().
 
 // Error Message
 var errorStyle = lipgloss.NewStyle().
-	Border(lipgloss.NormalBorder()).
+	Border(lipgloss.RoundedBorder()).
 	BorderForeground(lipgloss.Color("#F12746")).
-	Padding(3).
+	Padding(0, 1).
 	AlignHorizontal(lipgloss.Center)

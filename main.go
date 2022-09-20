@@ -235,7 +235,7 @@ func (m Model) View() string {
 
 	case erroring:
 		s = fmt.Sprint(m.errNote, m.err)
-		s = errorStyle.Render(s)
+		s = errorStyle.Render(s) + "\n"
 	}
 
 	return s
