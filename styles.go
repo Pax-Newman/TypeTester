@@ -19,3 +19,10 @@ var missStyle = lipgloss.NewStyle().
 var unwrittenStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#828282")).
 	ColorWhitespace(false)
+
+// Error Message
+var errorStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder()).
+	BorderForeground(lipgloss.Color("#F12746")).
+	Padding(3).
+	AlignHorizontal(lipgloss.Center)
