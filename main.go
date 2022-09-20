@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	crypto_rand "crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"math/rand"
@@ -18,6 +21,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// State Enum
+type state int
+
+const (
+	playing state = iota
+	quitting
+	erroring
+	finished
+)
+
 // Model
 type Model struct {
 	// bubble models
@@ -27,10 +40,11 @@ type Model struct {
 	help      help.Model
 
 	// state fields
+	state             state
 	referenceSentence string
-	quitting          bool
-	finished          bool
 	wordbank          []string
+	err               error
+	errNote           string
 
 	// helpers
 	logger log.Logger
@@ -48,6 +62,12 @@ type keymap struct {
 type logMsg string
 type startMsg struct{}
 type stopMsg struct{}
+type errMsg struct {
+	err  error
+	note string
+}
+type wordbankMsg []string
+type seedMsg int64
 
 // Commands
 func stopGame() tea.Msg {
@@ -58,10 +78,42 @@ func startGame() tea.Msg {
 	return startMsg{}
 }
 
-func logCmd(s string) tea.Cmd {
-	return func() tea.Msg {
-		return logMsg(s)
+func logText(s string) tea.Cmd {
+	return func() tea.Msg { return logMsg(s) }
+}
+
+func reportError(e error, msg string) tea.Cmd {
+	return func() tea.Msg { return errMsg{e, msg} }
+}
+
+// Loads a list of words from a given file
+func loadWorkBank() tea.Msg {
+	f, err := os.Open("wordbank.txt")
+	if err != nil {
+		return errMsg{err, "Fatal error while loading wordbank file: "}
 	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	words := []string{}
+	for scanner.Scan() {
+		words = append(words, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return errMsg{err, "Fatal error occured while reading wordbank file: "}
+	}
+	return wordbankMsg(words)
+}
+
+// Sets a pseudorandom seed for the random generator
+func setSeed() tea.Msg {
+	var seedbytes [8]byte
+	_, err := crypto_rand.Read(seedbytes[:])
+	if err != nil {
+		return errMsg{err, "Fatal error occured while generating random seed: "}
+	}
+	return seedMsg(int64(binary.LittleEndian.Uint64(seedbytes[:])))
 }
 
 // Styles
@@ -70,7 +122,7 @@ var hitStyle = lipgloss.NewStyle().
 
 var missStyle = lipgloss.NewStyle().
 	Background(lipgloss.Color("#F12746")).
-	ColorWhitespace(false)
+	ColorWhitespace(true)
 
 var unwrittenStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#828282")).
@@ -106,6 +158,8 @@ func (m Model) Init() tea.Cmd {
 	batch := tea.Batch(
 		m.stopwatch.Init(),
 		textinput.Blink,
+		loadWorkBank,
+		setSeed,
 		startGame,
 	)
 	return batch
@@ -116,16 +170,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	// report error and quit game
+	case errMsg:
+		m.err = msg.err
+		m.errNote = msg.note
+		m.state = erroring
+		return m, tea.Quit
 	// log incoming message
 	case logMsg:
 		m.logger.Println("From message " + msg)
+		return m, nil
+	case wordbankMsg:
+		m.wordbank = msg
+		return m, nil
+	case seedMsg:
+		rand.Seed(int64(msg))
 		return m, nil
 	// if the message is a keystroke
 	case tea.KeyMsg:
 		switch {
 		// quit the game
 		case key.Matches(msg, m.keymap.quit):
-			m.quitting = true
+			m.state = quitting
 			return m, tea.Quit
 
 		// reset the timer
@@ -143,8 +209,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// check completion status
 			if val := m.textinput.Value() + msg.String(); len(val) > 0 && val == m.referenceSentence {
 				m.textinput.Reset()
-				m.finished = true
-				return m, stopGame
+				m.state = finished
+				return m, tea.Batch(
+					stopGame,
+					logText("finished here"),
+				)
 			}
 		}
 	// Stop the game when it's finished
@@ -155,10 +224,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textinput.Reset()
 		m.referenceSentence = createNewSentence(10, m.wordbank)
 		m.textinput.CharLimit = len(m.referenceSentence)
-		m.finished = false
+		m.state = playing
 		cmd := tea.Batch(
 			m.stopwatch.Reset(),
-			// logCmd(fmt.Sprint(m.stopwatch.Interval)),
+			m.stopwatch.Start(),
 		)
 		return m, cmd
 	}
@@ -178,15 +247,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.finished {
-		s := "Good job! Your final time was: " + m.stopwatch.View()
 
-		s += "\n\nPress Enter to restart"
-		return s
-	}
+	var s string
 
-	s := m.stopwatch.View() + "\n"
-	if !m.quitting {
+	switch m.state {
+	case playing:
+		s = m.stopwatch.View() + "\n"
 		// render timer
 		s = "Elapsed: " + s
 
@@ -198,6 +264,7 @@ func (m Model) View() string {
 		ref := []rune(m.referenceSentence)
 		var styled string
 
+		// TODO display cursor
 		for idx, r := range typed {
 			if r == ref[idx] {
 				styled += hitStyle.Render(string(r))
@@ -211,13 +278,27 @@ func (m Model) View() string {
 		s += unwrittenStyle.Render(m.referenceSentence[len(typed):])
 
 		// render help
-		s += m.helpView()
+		s += "\n" + m.helpView()
+
+	case finished:
+		s = "Good job! Your final time was: " + m.stopwatch.View()
+
+		s += "\n\nPress Enter to restart"
+
+	case quitting:
+		s = "Elapsed: " + s
+
+	case erroring:
+		s = fmt.Sprint(m.errNote, m.err)
 	}
+
 	return s
 }
 
 // run program
 func main() {
+	setSeed()
+
 	// create and define textinput
 	ti := textinput.New()
 	ti.Placeholder = "Start Typing!"
@@ -251,11 +332,9 @@ func main() {
 			),
 		},
 		// init help
-		help: help.NewModel(),
-		// TODO fetch wordbank from file
-		wordbank: []string{"jupiter", "coffee", "read", "book", "river", "create", "diaspora", "easy", "rumble", "tiddleywink", "funky"},
-		finished: false,
-		logger:   *errLogger,
+		help:   help.NewModel(),
+		state:  playing,
+		logger: *errLogger,
 	}
 
 	m.keymap.start.SetEnabled(false)
