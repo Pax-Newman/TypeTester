@@ -87,7 +87,12 @@ func reportError(e error, msg string) tea.Cmd {
 }
 
 // Loads a list of words from a given file
-func loadWorkBank() tea.Msg {
+//
+// Unused until https://github.com/charmbracelet/bubbletea/commit/989d49f3e69f2e67951a6b803a2f6973de8443d0
+// is implemented on main branch
+//
+// https://github.com/charmbracelet/bubbletea/issues/413
+/* func loadWordbank() tea.Msg {
 	f, err := os.Open("wordbank.txt")
 	if err != nil {
 		return errMsg{err, "Fatal error while loading wordbank file: "}
@@ -104,7 +109,7 @@ func loadWorkBank() tea.Msg {
 		return errMsg{err, "Fatal error occured while reading wordbank file: "}
 	}
 	return wordbankMsg(words)
-}
+} */
 
 // Sets a pseudorandom seed for the random generator
 func setSeed() tea.Msg {
@@ -140,6 +145,25 @@ func createNewSentence(length int, words []string) string {
 	return strings.Join(s, " ")
 }
 
+func loadWordbank() []string {
+	f, err := os.Open("wordbank.txt")
+	if err != nil {
+		log.Fatal("Error opening wordbank file: ", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	words := []string{}
+	for scanner.Scan() {
+		words = append(words, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal("Error while reading wordbank file: ", err)
+	}
+	return words
+}
+
 // Methods
 
 // render help page
@@ -158,7 +182,6 @@ func (m Model) Init() tea.Cmd {
 	batch := tea.Batch(
 		m.stopwatch.Init(),
 		textinput.Blink,
-		loadWorkBank,
 		setSeed,
 		startGame,
 	)
@@ -181,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Println("From message " + msg)
 		return m, nil
 	case wordbankMsg:
-		m.wordbank = msg
+		m.wordbank = []string(msg)
 		return m, nil
 	case seedMsg:
 		rand.Seed(int64(msg))
@@ -219,7 +242,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Stop the game when it's finished
 	case stopMsg:
 		return m, m.stopwatch.Stop()
-	// Continue playing with a new game
+	// Start a new game
 	case startMsg:
 		m.textinput.Reset()
 		m.referenceSentence = createNewSentence(10, m.wordbank)
@@ -332,9 +355,10 @@ func main() {
 			),
 		},
 		// init help
-		help:   help.NewModel(),
-		state:  playing,
-		logger: *errLogger,
+		help:     help.NewModel(),
+		state:    playing,
+		logger:   *errLogger,
+		wordbank: loadWordbank(),
 	}
 
 	m.keymap.start.SetEnabled(false)
