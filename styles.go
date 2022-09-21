@@ -26,3 +26,6 @@ var errorStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("#F12746")).
 	Padding(0, 1).
 	AlignHorizontal(lipgloss.Center)
+
+var cursorStyle = lipgloss.NewStyle().
+	Background(lipgloss.Color("#828282"))
