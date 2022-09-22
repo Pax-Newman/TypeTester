@@ -223,7 +223,7 @@ func (m Model) View() string {
 		s += unwrittenStyle.Render(m.referenceSentence[len(typed):])
 
 		// render help
-		s += "\n" + m.helpView()
+		s = gameBoxStyle.Render(s) + "\n" + m.helpView()
 
 	case finished:
 		s = "Good job! Your final time was: " + m.stopwatch.View()

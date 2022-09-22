@@ -6,6 +6,11 @@ import (
 
 // Styles
 
+// Game Box
+var gameBoxStyle = lipgloss.NewStyle().
+	Width(50).
+	Border(lipgloss.RoundedBorder())
+
 // When a correct character is typed
 var hitStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#0BF48B"))
