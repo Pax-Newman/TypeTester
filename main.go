@@ -104,7 +104,7 @@ func (m Model) Init() tea.Cmd {
 	batch := tea.Batch(
 		m.stopwatch.Init(),
 		textinput.Blink,
-		setSeed,
+		setSeed, // currently has a chance to not execute before the game starts
 		startGame,
 	)
 	return batch
@@ -207,6 +207,7 @@ func (m Model) View() string {
 		// render typed sentence
 		typed := []rune(m.textinput.Value())
 		ref := []rune(m.referenceSentence)
+		cursorLocation := m.textinput.Cursor()
 		var styled string
 
 		// TODO display cursor
@@ -219,8 +220,15 @@ func (m Model) View() string {
 		}
 		s += styled
 
+		// render cursor
+		offset := 0
+		if len(typed) < len(ref) {
+			offset++
+			s += cursorStyle.Render(string(ref[cursorLocation]))
+		}
+
 		// render remainer of sentence
-		s += unwrittenStyle.Render(m.referenceSentence[len(typed):])
+		s += unwrittenStyle.Render(m.referenceSentence[len(typed)+offset:])
 
 		// render help
 		s = gameBoxStyle.Render(s) + "\n" + m.helpView()
@@ -231,7 +239,7 @@ func (m Model) View() string {
 		s += "\n\nPress Enter to restart"
 
 	case quitting:
-		s = "Elapsed: " + s
+		s = "Elapsed: " + m.stopwatch.View() + "\n"
 
 	case erroring:
 		s = fmt.Sprint(m.errNote, m.err)
@@ -247,7 +255,6 @@ func main() {
 
 	// create and define textinput
 	ti := textinput.New()
-	ti.Placeholder = "Start Typing!"
 	ti.Focus()
 
 	f, _ := os.OpenFile("TypeTester.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
