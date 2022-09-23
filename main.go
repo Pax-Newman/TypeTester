@@ -197,12 +197,13 @@ func (m Model) View() string {
 
 	switch m.state {
 	case playing:
-		s = m.stopwatch.View() + "\n"
 		// render timer
-		s = "Elapsed: " + s
+		timer := "Elapsed: " + m.stopwatch.View() + "\n"
+		s = defaultStyle.Render(timer)
 
 		// render reference sentence
-		s += "\n" + m.referenceSentence + "\n"
+		refSent := "\n" + m.referenceSentence + "\n"
+		s += defaultStyle.Render(refSent)
 
 		// render typed sentence
 		typed := []rune(m.textinput.Value())
@@ -228,10 +229,14 @@ func (m Model) View() string {
 		}
 
 		// render remainer of sentence
-		s += unwrittenStyle.Render(m.referenceSentence[len(typed)+offset:])
+		remainder := m.referenceSentence[len(typed)+offset:]
+		s += unwrittenStyle.Render(remainder)
+
+		// render border
+		s = gameBoxStyle.Render(s)
 
 		// render help
-		s = gameBoxStyle.Render(s) + "\n" + m.helpView()
+		s += "\n" + m.helpView()
 
 	case finished:
 		s = "Good job! Your final time was: " + m.stopwatch.View()
