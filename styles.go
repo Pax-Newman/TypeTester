@@ -12,8 +12,8 @@ var defaultStyle = lipgloss.NewStyle().
 
 // Game Box
 var gameBoxStyle = lipgloss.NewStyle().
-	Width(50).
-	Border(lipgloss.RoundedBorder())
+	Width(50)
+	// Border(lipgloss.RoundedBorder())
 
 // When a correct character is typed
 var hitStyle = lipgloss.NewStyle().
@@ -43,3 +43,8 @@ var errorStyle = lipgloss.NewStyle().
 var cursorStyle = lipgloss.NewStyle().
 	Inherit(defaultStyle).
 	Background(lipgloss.Color("#828282"))
+
+var pauseStyle = lipgloss.NewStyle().
+	Inherit(defaultStyle).
+	Width(50).
+	Border(lipgloss.RoundedBorder())

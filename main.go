@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -26,6 +27,7 @@ const (
 	quitting
 	erroring
 	finished
+	paused
 )
 
 // Model
@@ -125,9 +127,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logMsg:
 		m.logger.Println("From message " + msg)
 		return m, nil
+	// load wordbank
 	case wordbankMsg:
 		m.wordbank = []string(msg)
 		return m, nil
+	// set random seed
 	case seedMsg:
 		rand.Seed(int64(msg))
 		return m, nil
@@ -143,9 +147,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.reset):
 			return m, startGame
 
-		// toggle timer status
-		// TODO change this to pause the game
+		// toggle paused/playing state
 		case key.Matches(msg, m.keymap.start, m.keymap.stop):
+			if m.state == paused {
+				m.state = playing
+			} else {
+				m.state = paused
+			}
 			m.keymap.stop.SetEnabled(!m.stopwatch.Running())
 			m.keymap.start.SetEnabled(m.stopwatch.Running())
 			return m, m.stopwatch.Toggle()
@@ -155,10 +163,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if val := m.textinput.Value() + msg.String(); len(val) > 0 && val == m.referenceSentence {
 				m.textinput.Reset()
 				m.state = finished
-				return m, tea.Batch(
-					stopGame,
-					logText("finished here"),
-				)
+				return m, stopGame
 			}
 		}
 	// Stop the game when it's finished
@@ -180,8 +185,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// update bubbles
 	var stopwatchcmd tea.Cmd
 	m.stopwatch, stopwatchcmd = m.stopwatch.Update(msg)
+
 	var textinputcmd tea.Cmd
-	m.textinput, textinputcmd = m.textinput.Update(msg)
+	if m.state == playing {
+		m.textinput, textinputcmd = m.textinput.Update(msg)
+	}
 
 	batch := tea.Batch(
 		stopwatchcmd,
@@ -196,6 +204,7 @@ func (m Model) View() string {
 	var s string
 
 	switch m.state {
+
 	case playing:
 		// render timer
 		timer := "Elapsed: " + m.stopwatch.View() + "\n"
@@ -209,34 +218,43 @@ func (m Model) View() string {
 		typed := []rune(m.textinput.Value())
 		ref := []rune(m.referenceSentence)
 		cursorLocation := m.textinput.Cursor()
-		var styled string
+		var styledInput string
 
-		// TODO display cursor
 		for idx, r := range typed {
 			if r == ref[idx] {
-				styled += hitStyle.Render(string(r))
+				styledInput += hitStyle.Render(string(r))
 			} else {
-				styled += missStyle.Render(string(r))
+				styledInput += missStyle.Render(string(r))
 			}
 		}
-		s += styled
 
 		// render cursor
 		offset := 0
 		if len(typed) < len(ref) {
 			offset++
-			s += cursorStyle.Render(string(ref[cursorLocation]))
+			styledInput += cursorStyle.Render(string(ref[cursorLocation]))
 		}
 
 		// render remainer of sentence
 		remainder := m.referenceSentence[len(typed)+offset:]
-		s += unwrittenStyle.Render(remainder)
+		styledInput += unwrittenStyle.Render(remainder)
 
-		// render border
+		// join typed input to rest of view
+		s += styledInput
+
+		// wrap text in a box
 		s = gameBoxStyle.Render(s)
 
 		// render help
 		s += "\n" + m.helpView()
+
+	case paused:
+		s = lipgloss.PlaceHorizontal(
+			gameBoxStyle.GetWidth(),
+			lipgloss.Center,
+			"\n\nPaused\n\n",
+		)
+		s = pauseStyle.Render(s)
 
 	case finished:
 		s = "Good job! Your final time was: " + m.stopwatch.View()
